@@ -1,0 +1,66 @@
+[
+  {
+    "items": [
+      {
+        "index": "/tong-quan",
+        "title": "Tổng quan",
+        "icon": "Odometer"
+      },
+      {
+        "index": "/san-pham",
+        "title": "Sản phẩm",
+        "icon": "Goods"
+      },
+      {
+        "index": "/quang-cao",
+        "title": "Quảng cáo",
+        "icon": "TrendCharts"
+      },
+      {
+        "index": "/doi-soat",
+        "title": "Đối soát",
+        "icon": "DocumentChecked"
+      },
+      {
+        "index": "/chi-phi-khuyen-mai",
+        "title": "Chi phí & khuyến mãi",
+        "icon": "Ticket"
+      },
+      {
+        "index": "/quan-ly-kho",
+        "title": "Quản lý kho",
+        "icon": "Box"
+      },
+      {
+        "index": "/marketing",
+        "title": "Kênh marketing",
+        "icon": "Promotion"
+      },
+      {
+        "index": "/doanh-thu",
+        "title": "Doanh thu",
+        "icon": "DataLine"
+      },
+      {
+        "index": "/vi-shopee",
+        "title": "Ví Shopee",
+        "icon": "Wallet"
+      },
+      {
+        "index": "/ho-so-shop",
+        "title": "Hồ sơ shop",
+        "icon": "Shop"
+      },
+      {
+        "index": "/danh-gia",
+        "title": "Đánh giá",
+        "icon": "Star"
+      },
+      {
+        "index": "/cai-dat",
+        "title": "Cài đặt",
+        "icon": "Setting"
+      }
+    ]
+  }
+]

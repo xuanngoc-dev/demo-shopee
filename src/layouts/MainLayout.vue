@@ -1,0 +1,677 @@
+<template>
+  <el-container
+    class="main-layout"
+    :class="{
+      'is-navbar-fixed': navbarFixed,
+      'is-sidebar-fixed': sidebarFixed,
+      'is-sidebar-overlay': isSidebarOverlay,
+    }"
+  >
+    <div
+      :key="asideMountKey"
+      class="aside-slot"
+      :style="{ width: asideSlotWidth }"
+    >
+      <el-aside
+        :width="asidePanelWidth"
+        class="aside"
+        :class="{
+          'is-fixed': sidebarFixed || isSidebarOverlayExpanded,
+          'is-collapsed': collapsed,
+          'is-overlay-expanded': isSidebarOverlayExpanded,
+          'is-hover-expanded': hoverExpanded,
+        }"
+        @mouseenter="onAsideEnter"
+        @mouseleave="onAsideLeave"
+      >
+        <div class="brand">
+          <span class="brand-mark">S</span>
+          <span class="brand-text" :class="{ 'is-hidden': collapsed }">Shopee</span>
+        </div>
+
+        <div class="aside-menu">
+          <SideMenu :collapsed="collapsed" />
+        </div>
+      </el-aside>
+    </div>
+
+    <div
+      v-if="showAsideMask"
+      class="aside-mask"
+      aria-hidden="true"
+      @click="pinCollapse"
+    />
+
+    <el-container class="content-shell">
+      <el-header
+        class="header"
+        :class="{ 'is-fixed': navbarFixed }"
+      >
+        <div class="header-left">
+          <el-button text @click="togglePinnedCollapse">
+            <el-icon :size="20">
+              <Fold v-if="!pinnedCollapsed" />
+              <Expand v-else />
+            </el-icon>
+          </el-button>
+        </div>
+
+        <div class="header-right">
+          <div class="header-datetime" :title="nowFullLabel">
+            <span class="header-datetime__weekday">{{ nowWeekday }}</span>
+            <span class="header-datetime__time">{{ nowTime }}</span>
+            <span class="header-datetime__date">{{ nowDate }}</span>
+          </div>
+
+          <button
+            type="button"
+            class="header-search"
+            aria-label="Tìm kiếm nhanh"
+            @click="searchOpen = true"
+          >
+            <el-icon :size="16"><Search /></el-icon>
+            <span class="header-search__placeholder">Tìm kiếm nhanh...</span>
+            <kbd class="header-search__kbd">{{ searchShortcutLabel }}</kbd>
+          </button>
+
+          <el-switch
+            v-model="isDark"
+            inline-prompt
+            active-text="🌙"
+            inactive-text="☀️"
+            @change="toggleDark"
+          />
+
+          <el-tooltip content="Thông báo" placement="bottom">
+            <el-badge
+              :value="unreadNotifications"
+              :hidden="!unreadNotifications"
+              class="header-badge"
+            >
+              <el-button text class="icon-btn" @click="notificationsOpen = true">
+                <el-icon :size="20"><Bell /></el-icon>
+              </el-button>
+            </el-badge>
+          </el-tooltip>
+
+          <el-tooltip content="Cài đặt giao diện" placement="bottom">
+            <el-button text class="icon-btn" @click="settingsOpen = true">
+              <el-icon :size="20"><Setting /></el-icon>
+            </el-button>
+          </el-tooltip>
+
+          <el-dropdown trigger="click" @command="onCommand">
+            <span class="user-trigger">
+              <el-avatar :size="32" class="user-avatar">{{ avatarLetter }}</el-avatar>
+              <span class="user-name" title="Chủ shop">
+                <span class="user-name__full">Chủ shop</span>
+                <span class="user-name__short">Shop</span>
+              </span>
+              <el-icon><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item disabled>shop@example.com</el-dropdown-item>
+                <el-dropdown-item divided command="profile">
+                  Hồ sơ shop
+                </el-dropdown-item>
+                <el-dropdown-item command="settings">Cài đặt</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </el-header>
+
+      <el-main class="main">
+        <router-view />
+      </el-main>
+    </el-container>
+
+    <NotificationDrawer
+      v-model="notificationsOpen"
+      v-model:unread-count="unreadNotifications"
+    />
+    <LayoutSettingsDrawer v-model="settingsOpen" v-model:dark="isDark" />
+    <QuickSearchModal v-model="searchOpen" />
+  </el-container>
+</template>
+
+<script setup>
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
+import { Fold, Expand, ArrowDown, Setting, Bell, Search } from '@element-plus/icons-vue'
+import { useLayoutStore } from '@/stores/layout'
+import SideMenu from '@/components/SideMenu.vue'
+import NotificationDrawer from '@/components/NotificationDrawer.vue'
+import LayoutSettingsDrawer from '@/components/LayoutSettingsDrawer.vue'
+import QuickSearchModal from '@/components/QuickSearchModal.vue'
+
+const COLLAPSE_BREAKPOINT = 992
+
+const WEEKDAYS = [
+  'Chủ Nhật',
+  'Thứ Hai',
+  'Thứ Ba',
+  'Thứ Tư',
+  'Thứ Năm',
+  'Thứ Sáu',
+  'Thứ Bảy',
+]
+
+const router = useRouter()
+const layoutStore = useLayoutStore()
+const { navbarFixed, sidebarFixed, sidebarPushContent } = storeToRefs(layoutStore)
+
+const pinnedCollapsed = ref(false)
+const hoverExpanded = ref(false)
+const settingsOpen = ref(false)
+const notificationsOpen = ref(false)
+const searchOpen = ref(false)
+const unreadNotifications = ref(3)
+const isDark = ref(document.documentElement.classList.contains('dark'))
+const now = ref(new Date())
+const asideMountKey = ref(0)
+
+const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+const searchShortcutLabel = isMac ? '⌘K' : 'Ctrl+K'
+const avatarLetter = 'S'
+
+const collapsed = computed(
+  () => pinnedCollapsed.value && !hoverExpanded.value,
+)
+
+const isSidebarOverlay = computed(() => !sidebarPushContent.value)
+const isSidebarOverlayExpanded = computed(() => {
+  if (hoverExpanded.value) return true
+  return isSidebarOverlay.value && !pinnedCollapsed.value
+})
+const showAsideMask = computed(
+  () => isSidebarOverlay.value && !pinnedCollapsed.value,
+)
+
+const asideSlotWidth = computed(() => {
+  if (pinnedCollapsed.value) return '64px'
+  if (isSidebarOverlay.value) return '64px'
+  return '220px'
+})
+const asidePanelWidth = computed(() => (collapsed.value ? '64px' : '220px'))
+
+let hoverLeaveTimer = null
+
+function clearHoverLeaveTimer() {
+  if (hoverLeaveTimer != null) {
+    window.clearTimeout(hoverLeaveTimer)
+    hoverLeaveTimer = null
+  }
+}
+
+function onAsideEnter() {
+  if (!pinnedCollapsed.value) return
+  clearHoverLeaveTimer()
+  hoverExpanded.value = true
+}
+
+function onAsideLeave() {
+  if (!pinnedCollapsed.value) return
+  clearHoverLeaveTimer()
+  hoverLeaveTimer = window.setTimeout(() => {
+    hoverExpanded.value = false
+    hoverLeaveTimer = null
+  }, 180)
+}
+
+function togglePinnedCollapse() {
+  clearHoverLeaveTimer()
+  hoverExpanded.value = false
+  pinnedCollapsed.value = !pinnedCollapsed.value
+}
+
+function pinCollapse() {
+  clearHoverLeaveTimer()
+  hoverExpanded.value = false
+  pinnedCollapsed.value = true
+}
+
+watch(sidebarPushContent, async () => {
+  clearHoverLeaveTimer()
+  hoverExpanded.value = false
+  asideMountKey.value += 1
+  await nextTick()
+})
+
+const nowWeekday = computed(() => WEEKDAYS[now.value.getDay()])
+const nowTime = computed(() =>
+  now.value.toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }),
+)
+const nowDate = computed(() =>
+  now.value.toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }),
+)
+const nowFullLabel = computed(
+  () => `${nowWeekday.value}, ${nowTime.value} — ${nowDate.value}`,
+)
+
+let mediaQuery = null
+let clockTimer = null
+
+function syncCollapseByViewport(e) {
+  clearHoverLeaveTimer()
+  hoverExpanded.value = false
+  pinnedCollapsed.value = e.matches
+}
+
+function onGlobalKeydown(event) {
+  const key = event.key?.toLowerCase()
+  const withModifier = event.metaKey || event.ctrlKey
+
+  if (withModifier && key === 'k') {
+    event.preventDefault()
+    searchOpen.value = true
+  }
+}
+
+function toggleDark(val) {
+  document.documentElement.classList.toggle('dark', val)
+  localStorage.setItem('darkMode', val ? '1' : '0')
+}
+
+function onCommand(cmd) {
+  if (cmd === 'profile') router.push({ name: 'ho-so-shop' })
+  if (cmd === 'settings') router.push({ name: 'cai-dat' })
+}
+
+onMounted(() => {
+  const saved = localStorage.getItem('darkMode')
+  if (saved === '1') {
+    isDark.value = true
+    document.documentElement.classList.add('dark')
+  }
+
+  mediaQuery = window.matchMedia(`(max-width: ${COLLAPSE_BREAKPOINT - 1}px)`)
+  pinnedCollapsed.value = mediaQuery.matches
+  mediaQuery.addEventListener('change', syncCollapseByViewport)
+  window.addEventListener('keydown', onGlobalKeydown)
+
+  clockTimer = window.setInterval(() => {
+    now.value = new Date()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  mediaQuery?.removeEventListener('change', syncCollapseByViewport)
+  window.removeEventListener('keydown', onGlobalKeydown)
+  clearHoverLeaveTimer()
+  if (clockTimer != null) window.clearInterval(clockTimer)
+})
+</script>
+
+<style scoped lang="scss">
+.main-layout {
+  min-height: 100vh;
+  position: relative;
+
+  &.is-navbar-fixed,
+  &.is-sidebar-fixed {
+    height: 100vh;
+    overflow: hidden;
+  }
+}
+
+.aside-slot {
+  flex-shrink: 0;
+  position: relative;
+  transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.aside-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--el-overlay-color-lighter);
+  animation: aside-mask-in 0.2s ease;
+}
+
+@keyframes aside-mask-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.aside {
+  border-right: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  transition:
+    width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+
+  &.is-fixed {
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow: hidden;
+  }
+
+  &.is-overlay-expanded {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    z-index: 100;
+    overflow: hidden;
+    box-shadow: var(--el-box-shadow-dark);
+  }
+
+  &.is-hover-expanded {
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+  }
+}
+
+.aside-menu {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--el-border-color) transparent;
+
+  &::-webkit-scrollbar {
+    width: 2px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--el-border-color);
+    border-radius: 2px;
+
+    &:hover {
+      background-color: var(--el-text-color-secondary);
+    }
+  }
+}
+
+.brand {
+  height: 60px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--el-color-primary);
+  border-bottom: 1px solid var(--el-border-color);
+  overflow: hidden;
+  white-space: nowrap;
+  transition: padding 0.28s cubic-bezier(0.4, 0, 0.2, 1), justify-content 0.28s ease;
+
+  .aside.is-collapsed & {
+    justify-content: center;
+    padding: 0;
+  }
+}
+
+.brand-mark {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--el-color-primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.brand-text {
+  display: inline-block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 0.2s ease 0.06s,
+    transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &.is-hidden {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(-6px);
+    transition:
+      opacity 0.15s ease,
+      transform 0.2s ease,
+      max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+.content-shell {
+  min-width: 0;
+  min-height: 0;
+
+  .is-navbar-fixed &,
+  .is-sidebar-fixed & {
+    height: 100vh;
+  }
+
+  .is-navbar-fixed & {
+    overflow: hidden;
+  }
+
+  .is-sidebar-fixed:not(.is-navbar-fixed) & {
+    overflow-y: auto;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  flex-shrink: 0;
+
+  &.is-fixed {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+}
+
+.header-search {
+  flex: 0 1 280px;
+  max-width: 280px;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    border-color: var(--el-color-primary-light-5);
+    background: var(--el-fill-color);
+  }
+}
+
+.header-search__placeholder {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-search__kbd {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--el-text-color-placeholder);
+  font-family: inherit;
+}
+
+.header-datetime {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 4px 2px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--el-text-color-regular);
+}
+
+.header-datetime__weekday {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.header-datetime__time {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--el-color-primary);
+}
+
+.header-datetime__date {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.header-right {
+  margin-left: auto;
+  gap: 10px;
+}
+
+@media (max-width: 991px) {
+  .header-search {
+    flex-basis: 40px;
+    max-width: 40px;
+    justify-content: center;
+    padding: 6px;
+  }
+
+  .header-search__placeholder,
+  .header-search__kbd {
+    display: none;
+  }
+
+  .header-datetime__weekday {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-datetime {
+    display: none;
+  }
+}
+
+.icon-btn {
+  padding: 8px;
+}
+
+.header-badge {
+  :deep(.el-badge__content) {
+    transform: translateY(-2px) translateX(2px);
+  }
+}
+
+.user-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  max-width: 220px;
+}
+
+.user-avatar {
+  background: var(--el-color-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.user-name {
+  flex: 1;
+  min-width: 0;
+  max-width: 160px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-name__full {
+  display: inline;
+}
+
+.user-name__short {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .user-trigger {
+    max-width: 120px;
+  }
+
+  .user-name {
+    max-width: 72px;
+  }
+
+  .user-name__full {
+    display: none;
+  }
+
+  .user-name__short {
+    display: inline;
+  }
+}
+
+.main {
+  background: var(--el-bg-color-page);
+  min-height: 0;
+
+  .is-navbar-fixed & {
+    overflow-y: auto;
+  }
+}
+</style>
