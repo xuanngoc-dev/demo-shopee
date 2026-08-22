@@ -32,7 +32,7 @@ const routes = [
       {
         path: 'quang-cao',
         name: 'quang-cao',
-        component: placeholder,
+        component: () => import('@/views/quang-cao/QuangCao.vue'),
         meta: { title: 'Quảng cáo' },
       },
       {
