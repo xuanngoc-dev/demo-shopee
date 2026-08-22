@@ -12,6 +12,11 @@
         "icon": "Goods"
       },
       {
+        "index": "/don-hang",
+        "title": "Đơn hàng",
+        "icon": "List"
+      },
+      {
         "index": "/quang-cao",
         "title": "Quảng cáo",
         "icon": "TrendCharts"

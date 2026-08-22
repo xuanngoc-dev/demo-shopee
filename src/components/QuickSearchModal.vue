@@ -44,6 +44,7 @@ const router = useRouter()
 
 const sources = [
   { title: 'Sản phẩm', path: '/san-pham', icon: Goods },
+  { title: 'Đơn hàng', path: '/don-hang', icon: List },
   { title: 'Quảng cáo', path: '/quang-cao', icon: List },
   { title: 'Chi phí & khuyến mãi', path: '/chi-phi-khuyen-mai', icon: Ticket },
   { title: 'Ví Shopee', path: '/vi-shopee', icon: Wallet },

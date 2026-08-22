@@ -20,8 +20,14 @@ const routes = [
       {
         path: 'san-pham',
         name: 'san-pham',
-        component: placeholder,
+        component: () => import('@/views/san-pham/SanPham.vue'),
         meta: { title: 'Sản phẩm' },
+      },
+      {
+        path: 'don-hang',
+        name: 'don-hang',
+        component: () => import('@/views/don-hang/DonHang.vue'),
+        meta: { title: 'Đơn hàng' },
       },
       {
         path: 'quang-cao',
