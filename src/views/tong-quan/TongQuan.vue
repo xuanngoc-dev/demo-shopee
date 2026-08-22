@@ -1,40 +1,74 @@
 <template>
   <div class="dashboard">
-    <section class="hero">
-      <div>
-        <h1>Xin chào, Chủ shop</h1>
-        <p>Theo dõi đơn hàng, sản phẩm và doanh thu gian hàng trong ngày.</p>
-      </div>
-      <el-button type="primary" @click="$router.push({ name: 'them-san-pham' })">
-        Thêm sản phẩm
-      </el-button>
+    <section class="period-bar">
+      <CustomDatePicker
+        v-model="dateRange"
+        type="daterange"
+        unlink-panels
+        range-separator="–"
+        start-placeholder="Từ ngày"
+        end-placeholder="Đến ngày"
+        format="DD/MM/YYYY"
+        :disabled-date="isFutureDate"
+        :clearable="false"
+        class="period-bar__picker"
+        @change="onCustomRangeChange"
+      />
+
+      <CustomRadioGroup
+        v-model="periodPreset"
+        class="period-bar__presets"
+        @change="applyPreset"
+      >
+        <CustomRadioButton
+          v-for="item in periodOptions"
+          :key="item.value"
+          :value="item.value"
+        >
+          {{ item.label }}
+        </CustomRadioButton>
+      </CustomRadioGroup>
     </section>
 
-    <el-row :gutter="16">
-      <el-col v-for="card in statCards" :key="card.label" :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
+    <section
+      v-for="group in statGroups"
+      :key="group.title"
+      class="stat-group"
+    >
+      <h3 class="stat-group__title">{{ group.title }}</h3>
+      <div
+        class="stat-group__grid"
+        :class="`stat-group__grid--${group.key}`"
+      >
+        <CustomCard
+          v-for="card in group.cards"
+          :key="card.label"
+          shadow="hover"
+          class="stat-card"
+        >
           <div class="stat-card__icon" :style="{ background: card.bg, color: card.color }">
-            <el-icon :size="20">
+            <CustomIcon :size="20">
               <component :is="card.icon" />
-            </el-icon>
+            </CustomIcon>
           </div>
-          <div>
+          <div class="stat-card__content">
             <span class="stat-card__label">{{ card.label }}</span>
             <strong>{{ card.value }}</strong>
+            <span v-if="card.subValue" class="stat-card__sub">{{ card.subValue }}</span>
           </div>
-        </el-card>
-      </el-col>
-    </el-row>
+        </CustomCard>
+      </div>
+    </section>
 
-    <el-row :gutter="16" class="charts-row">
-      <el-col
+    <CustomRow :gutter="16" class="charts-row">
+      <CustomCol
         v-for="chart in overviewCharts"
         :key="chart.title"
         :xs="24"
         :sm="12"
         :lg="8"
       >
-        <el-card shadow="never" class="chart-card">
+        <CustomCard shadow="never" class="chart-card">
           <template #header>
             <div class="chart-card__header">
               <span>{{ chart.title }}</span>
@@ -48,11 +82,11 @@
             :value-suffix="chart.valueSuffix"
             :height="280"
           />
-        </el-card>
-      </el-col>
+        </CustomCard>
+      </CustomCol>
 
-      <el-col :xs="24" :sm="12" :lg="8">
-        <el-card shadow="never" class="chart-card">
+      <CustomCol :xs="24" :sm="12" :lg="8">
+        <CustomCard shadow="never" class="chart-card">
           <template #header>
             <div class="chart-card__header">
               <span>Hiệu quả khuyến mại theo mức giảm giá</span>
@@ -67,44 +101,162 @@
             line-suffix="%"
             :height="280"
           />
-        </el-card>
-      </el-col>
-    </el-row>
+        </CustomCard>
+      </CustomCol>
+    </CustomRow>
 
-    <el-card shadow="never" class="orders-card">
+    <CustomCard shadow="never" class="orders-card">
       <template #header>
         <div class="orders-card__header">
           <span>Đơn hàng gần đây</span>
-          <el-button text type="primary" @click="$router.push({ name: 'don-hang' })">
+          <CustomButton text type="primary" @click="$router.push({ name: 'don-hang' })">
             Xem tất cả
-          </el-button>
+          </CustomButton>
         </div>
       </template>
 
-      <el-table :data="orders" stripe>
-        <el-table-column prop="id" label="Mã đơn" width="140" />
-        <el-table-column prop="customer" label="Khách hàng" />
-        <el-table-column prop="total" label="Tổng tiền" width="140" />
-        <el-table-column prop="status" label="Trạng thái" width="160">
+      <CustomTable :data="orders" stripe>
+        <CustomTableColumn prop="id" label="Mã đơn" width="140" />
+        <CustomTableColumn prop="customer" label="Khách hàng" min-width="200" />
+        <CustomTableColumn prop="total" label="Tổng tiền" width="140" />
+        <CustomTableColumn prop="status" label="Trạng thái" width="160">
           <template #default="{ row }">
-            <el-tag :type="row.tag" size="small">{{ row.status }}</el-tag>
+            <CustomTag :type="row.tag" size="small">{{ row.status }}</CustomTag>
           </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+        </CustomTableColumn>
+      </CustomTable>
+    </CustomCard>
   </div>
 </template>
 
 <script setup>
-import { List, Goods, Wallet, Star } from '@element-plus/icons-vue'
+import { ref } from 'vue'
+import { Wallet, Money, TrendCharts, PieChart, Goods, CircleCheck, Clock, Van, CircleClose } from '@element-plus/icons-vue'
+import {
+  CustomButton,
+  CustomCard,
+  CustomCol,
+  CustomDatePicker,
+  CustomIcon,
+  CustomRadioButton,
+  CustomRadioGroup,
+  CustomRow,
+  CustomTable,
+  CustomTableColumn,
+  CustomTag,
+} from '@/components/element'
 import BieuDoCotTheoNhom from '@/components/charts/BieuDoCotTheoNhom.vue'
 import BieuDoCotVaDuong from '@/components/charts/BieuDoCotVaDuong.vue'
 
-const statCards = [
-  { label: 'Đơn hôm nay', value: '24', icon: List, color: '#ee4d2d', bg: '#fef2ef' },
-  { label: 'Sản phẩm đang bán', value: '186', icon: Goods, color: '#e6a23c', bg: '#fdf6ec' },
-  { label: 'Doanh thu', value: '12.4tr', icon: Wallet, color: '#67c23a', bg: '#f0f9eb' },
-  { label: 'Đánh giá shop', value: '4.9', icon: Star, color: '#409eff', bg: '#ecf5ff' },
+const periodOptions = [
+  { value: 'today', label: 'Hôm nay' },
+  { value: 'yesterday', label: 'Hôm qua' },
+  { value: 'week', label: 'Tuần này' },
+  { value: 'month', label: 'Tháng này' },
+  { value: 'quarter', label: 'Quý này' },
+  { value: 'year', label: 'Năm nay' },
+]
+
+function startOfDay(date) {
+  const next = new Date(date)
+  next.setHours(0, 0, 0, 0)
+  return next
+}
+
+function endOfDay(date) {
+  const next = new Date(date)
+  next.setHours(23, 59, 59, 999)
+  return next
+}
+
+function toDayKey(date) {
+  const d = new Date(date)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function rangeForPreset(key) {
+  const now = new Date()
+  const today = startOfDay(now)
+
+  if (key === 'today') return [today, endOfDay(now)]
+
+  if (key === 'yesterday') {
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    return [yesterday, endOfDay(yesterday)]
+  }
+
+  if (key === 'week') {
+    const weekday = today.getDay()
+    const mondayOffset = weekday === 0 ? 6 : weekday - 1
+    const start = new Date(today)
+    start.setDate(start.getDate() - mondayOffset)
+    return [start, endOfDay(now)]
+  }
+
+  if (key === 'month') {
+    return [new Date(today.getFullYear(), today.getMonth(), 1), endOfDay(now)]
+  }
+
+  if (key === 'quarter') {
+    const quarterStartMonth = Math.floor(today.getMonth() / 3) * 3
+    return [new Date(today.getFullYear(), quarterStartMonth, 1), endOfDay(now)]
+  }
+
+  return [new Date(today.getFullYear(), 0, 1), endOfDay(now)]
+}
+
+function rangesEqual(left, right) {
+  if (!left?.length || !right?.length) return false
+  return toDayKey(left[0]) === toDayKey(right[0]) && toDayKey(left[1]) === toDayKey(right[1])
+}
+
+function isFutureDate(date) {
+  return startOfDay(date).getTime() > startOfDay(new Date()).getTime()
+}
+
+function applyPreset(key) {
+  dateRange.value = rangeForPreset(key)
+}
+
+function onCustomRangeChange(val) {
+  if (!val?.length) {
+    periodPreset.value = 'today'
+    applyPreset('today')
+    return
+  }
+  const matched = periodOptions.find((item) => rangesEqual(val, rangeForPreset(item.value)))
+  periodPreset.value = matched?.value ?? ''
+}
+
+const periodPreset = ref('today')
+const dateRange = ref(rangeForPreset('today'))
+
+const statGroups = [
+  {
+    key: 'overview',
+    title: 'Tổng quan',
+    cards: [
+      { label: 'Tổng doanh thu', value: '48.6tr', icon: Wallet, color: '#ee4d2d', bg: '#fef2ef' },
+      { label: 'Lợi nhuận sau phí', value: '12.8tr', icon: Money, color: '#67c23a', bg: '#f0f9eb' },
+      { label: 'Lợi nhuận dòng', value: '9.4tr', icon: TrendCharts, color: '#409eff', bg: '#ecf5ff' },
+      { label: 'Biên lợi nhuận', value: '26,3%', icon: PieChart, color: '#e6a23c', bg: '#fdf6ec' },
+      { label: 'Giá trị đơn hàng TB', value: '186.000đ', icon: Goods, color: '#9b59b6', bg: '#f5eef8' },
+    ],
+  },
+  {
+    key: 'reconciliation',
+    title: 'Đối soát',
+    cards: [
+      { label: 'Đã đối soát', value: '32.1tr', subValue: '142 đơn', icon: CircleCheck, color: '#67c23a', bg: '#f0f9eb' },
+      { label: 'Đang chờ đối soát', value: '8.4tr', subValue: '36 đơn', icon: Clock, color: '#e6a23c', bg: '#fdf6ec' },
+      { label: 'Đang giao', value: '6.2tr', subValue: '28 đơn', icon: Van, color: '#409eff', bg: '#ecf5ff' },
+      { label: 'Đã huỷ', value: '1.1tr', subValue: '9 đơn', icon: CircleClose, color: '#f56c6c', bg: '#fef0f0' },
+    ],
+  },
 ]
 
 function lastThreeMonthLabels() {
@@ -202,13 +354,65 @@ const orders = [
   }
 }
 
-.stat-card {
-  margin-bottom: 16px;
+.period-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
 
+  &__presets {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  &__picker {
+    width: 280px;
+    max-width: 100%;
+  }
+}
+
+.stat-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  &__title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+  }
+
+  &__grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    @media (min-width: 768px) {
+      gap: 16px;
+    }
+
+    &--overview {
+      @media (min-width: 1200px) {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+
+    &--reconciliation {
+      @media (min-width: 1200px) {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+  }
+}
+
+.stat-card {
   :deep(.el-card__body) {
     display: flex;
     align-items: center;
     gap: 14px;
+    height: 100%;
   }
 
   &__icon {
@@ -218,6 +422,11 @@ const orders = [
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+  }
+
+  &__content {
+    min-width: 0;
   }
 
   &__label {
@@ -228,7 +437,16 @@ const orders = [
   }
 
   strong {
+    display: block;
     font-size: 20px;
+    line-height: 1.2;
+  }
+
+  &__sub {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
   }
 }
 
